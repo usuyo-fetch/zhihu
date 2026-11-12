@@ -178,9 +178,12 @@ async fn the_manifest_lists_every_row_of_routes_and_matches_the_three_kinds() {
     assert_eq!(plugin.id().as_str(), "usuyo-fetch/zhihu");
     assert_eq!(plugin.header.version.to_string(), env!("CARGO_PKG_VERSION"));
     let spec = &plugin.spec;
-    // routes.md 第 10 节的每一行，顺序照清单
+    // routes.md 第 10 节的每一行，加上 mediacrawler，顺序照清单
     let ids: Vec<&str> = spec.methods.iter().map(|m| m.id.as_str()).collect();
-    assert_eq!(ids, ["page", "collection", "collection-private"]);
+    assert_eq!(
+        ids,
+        ["page", "collection", "collection-private", "mediacrawler"]
+    );
     let page = spec.method("page").unwrap();
     assert_eq!(
         (page.access, page.login, page.account),
