@@ -1,0 +1,88 @@
+# 知乎获取插件：按一条回答、文章或想法的链接取内容，要一份访客身份（不是账号）；公开收藏夹和私密收藏夹还没做。
+# 访客身份：usuyo 在应用的窗口里开一次知乎、不登录，存下页面自己生成的 cookie，经 USUYO_VISITOR 交过来；没交就回 visitor-required。
+# 2026-11-12 不带 cookie 的普通请求回答页、文章页只回挑战页（403），所以不能是不带任何身份的方法。
+# 几种方法各列一项（usuyo 协议 §2.3.1），没做的也列；行和 usuyo 仓库 docs/platforms/routes.md 第 10 节一一对应。
+# 知乎视频（/zvideo/）由 yt-dlp 插件取，这里不匹配。
+protocol: 1
+id: usuyo-fetch/zhihu
+kind: fetch
+name: 知乎
+description: 按链接取单条知乎回答、文章或想法的正文（Markdown，公式留 LaTeX 源码）、图片、作者和计数（不用账号）；收藏夹还没做
+version: 0.1.0
+license: MIT
+maintainers: [Fldicoahkiin]
+platforms: [zhihu]
+match:
+  - "www.zhihu.com/question/*/answer/*"
+  - "www.zhihu.com/answer/*"
+  - "www.zhihu.com/pin/*"
+  - "zhihu.com/question/*/answer/*"
+  - "zhihu.com/answer/*"
+  - "zhihu.com/pin/*"
+  - "zhuanlan.zhihu.com/p/*"
+visitors:
+  - site: www.zhihu.com
+    name: 知乎
+    url: https://www.zhihu.com/
+    domains: [".zhihu.com"]
+sites:
+  - site: www.zhihu.com
+    name: 知乎
+    credential: cookies
+    loginUrl: https://www.zhihu.com/signin
+    cookies: [z_c0]
+methods:
+  - id: page
+    name: 公开页
+    access: public-web
+    login: none
+    account: visitor
+    visitors: [www.zhihu.com]
+    risk:
+      text: 2026-11-12 不带 cookie 的普通请求，回答页和文章页都回 403 的挑战页（要页面脚本算出验证 cookie 才放行）；所以要一份访客身份，没有就不发请求，带着仍遇到挑战页时回 visitor-required，不去算、不绕。没有用真实的访客身份请求过，也没有取到过一页真实的回答、文章或想法
+      source: {label: "2026-11-12 实测，见 src/api.rs 顶部", url: "https://github.com/usuyo/usuyo/blob/main/docs/platforms/routes.md#10-知乎"}
+    capabilities:
+      fetch:
+        timeout: 15m
+        outputs: [text, html, images, meta]
+  - id: collection
+    name: 公开收藏夹
+    built: false
+    access: public-web
+    login: none
+    account: none
+    risk:
+      text: 2026-11-12 实测：不带 cookie 的普通请求：收藏夹页（200）只有收藏夹自己的信息，没有条目；列条目的 api/v4/collections/<id>/items 回 401（「身份未经过验证」），不是 routes.md 写的「不签名也能取」。访客身份够不够不知道，所以没做
+      source: {label: "2026-11-12 实测，见 src/api.rs 顶部", url: "https://github.com/usuyo/usuyo/blob/main/docs/platforms/routes.md#10-知乎"}
+    capabilities:
+      # 顺序没有量到
+      list:
+        order: unordered
+        link: 公开收藏夹的链接
+  - id: collection-private
+    name: 私密收藏夹
+    built: false
+    access: session-api
+    login: required
+    account: in-usuyo
+    sites: [www.zhihu.com]
+    risk:
+      text: 带登录 cookie 调同一个接口；调研里没有处罚记录
+      source: {label: "usuyo platforms/routes.md 第 10 节", url: "https://github.com/usuyo/usuyo/blob/main/docs/platforms/routes.md#10-知乎"}
+    capabilities:
+      list:
+        order: unordered
+# 页面会出挑战页，宿主按最严的取：间隔长、每天少
+pacing:
+  zhihu: {batch: true, interval: 30s, daily: 100}
+permissions:
+  fs:
+    write: ["${OUT}"]
+  network:
+    mode: allowlist
+    hosts:
+      - "www.zhihu.com"
+      - "zhuanlan.zhihu.com"
+      - "*.zhimg.com"
+run:
+  command: ["${PLUGIN_DIR}/usuyo-fetch-zhihu"]
