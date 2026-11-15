@@ -10,3 +10,17 @@
 | MediaCrawler 的结果文件 | `mediacrawler` | 存下的：你自己跑 MediaCrawler 留下的知乎帖子文件（json 或 jsonl，或把 data 文件夹压成的 zip）里每篇的链接、标题、作者昵称、发布时间；不读评论、CSV、SQLite；只列链接，内容交给本插件的其他方法去取 | 不使用（文件是使用者自己用登录了账号的 MediaCrawler 跑出来的，这种方法不联网） | `private-api`，默认关 | 已实现，只对着手写的文件测过，没有对着 MediaCrawler 真正的输出比对过 |
 
 没有移植别的项目的代码；正文转换（`src/markdown.rs`）由同组织的 `usuyo-fetch/wechat-mp` 改来（MIT，同一作者）。
+
+## 开发
+
+`Cargo.toml` 里的 `usuyo-plugin`、`usuyo-plugin-kit` 是对 `https://github.com/usuyo/usuyo` 的 git 依赖，钉在固定的 `rev`。
+
+本地开发时用旁边 `usuyo/` 的工作区代替它们：`usuyo-fetch/.cargo/config.toml`（不进任何插件仓库）写了下面的覆盖，cargo 从当前目录往上找这个文件，在插件文件夹里跑 cargo 就生效；从别处跑要加 `--config <这个文件>`。
+
+```toml
+[patch."https://github.com/usuyo/usuyo"]
+usuyo-plugin = { path = "../usuyo/crates/usuyo-plugin" }
+usuyo-plugin-kit = { path = "../usuyo/crates/usuyo-plugin-kit" }
+```
+
+`Cargo.lock` 记的是覆盖后的路径形式，所以 CI 不加 `--locked` 构建，cargo 只重新锁这两个 usuyo crate。
