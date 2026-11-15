@@ -178,12 +178,9 @@ async fn the_manifest_lists_every_row_of_routes_and_matches_the_three_kinds() {
     assert_eq!(plugin.id().as_str(), "usuyo-fetch/zhihu");
     assert_eq!(plugin.header.version.to_string(), env!("CARGO_PKG_VERSION"));
     let spec = &plugin.spec;
-    // routes.md 第 10 节的每一行，加上 mediacrawler，顺序照清单
+    // routes.md 第 10 节的每一行，顺序照清单
     let ids: Vec<&str> = spec.methods.iter().map(|m| m.id.as_str()).collect();
-    assert_eq!(
-        ids,
-        ["page", "collection", "collection-private", "mediacrawler"]
-    );
+    assert_eq!(ids, ["page", "collection", "collection-private"]);
     let page = spec.method("page").unwrap();
     assert_eq!(
         (page.access, page.login, page.account),
@@ -231,7 +228,7 @@ async fn the_manifest_lists_every_row_of_routes_and_matches_the_three_kinds() {
         "https://example.com/answer/1",
     ] {
         let url = url::Url::parse(miss).unwrap();
-        // zvideo 的页面归 yt-dlp 插件；这里的 match 里没有它
+        // zvideo 的页面（视频文件）未实现；这里的 match 里没有它
         assert!(host.candidates(&url).is_empty(), "{miss}");
     }
 

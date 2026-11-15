@@ -1,0 +1,15 @@
+/Users/mac/WorkSpace/desktop_Project/usuyo-fetch/zhihu/target/debug/deps/uuid-ab93615d38a2408c.d: /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/lib.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/macros.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/builder.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/error.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/non_nil.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/parser.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/fmt.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/timestamp.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/v7.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/rng.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/external.rs
+
+/Users/mac/WorkSpace/desktop_Project/usuyo-fetch/zhihu/target/debug/deps/libuuid-ab93615d38a2408c.rmeta: /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/lib.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/macros.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/builder.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/error.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/non_nil.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/parser.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/fmt.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/timestamp.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/v7.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/rng.rs /Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/external.rs
+
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/lib.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/macros.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/builder.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/error.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/non_nil.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/parser.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/fmt.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/timestamp.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/v7.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/rng.rs:
+/Users/mac/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.29.2/src/external.rs:

@@ -5,9 +5,9 @@
 //! - `zhuanlan.zhihu.com/p/<id>`：文章；
 //! - `/pin/<id>`：想法。
 //!
-//! 知乎视频 `/zvideo/<id>` 归 yt-dlp 插件，这里不认。
+//! 知乎视频 `/zvideo/<id>`（视频文件）未实现，这里不认。
 //!
-//! 身份：`answer:<id>`、`article:<id>`、`pin:<id>`，写法和 yt-dlp 插件的 `zvideo:<id>` 一致。
+//! 身份：`answer:<id>`、`article:<id>`、`pin:<id>`。
 //! 同一条回答的两种链接身份相同；规范链接统一写 `https://www.zhihu.com/answer/<id>`。
 
 use url::Url;

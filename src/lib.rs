@@ -5,5 +5,4 @@ pub mod api;
 pub mod fetch;
 pub mod link;
 pub mod markdown;
-pub mod mediacrawler;
 pub mod page;

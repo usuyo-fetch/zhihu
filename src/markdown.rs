@@ -1,7 +1,7 @@
 //! 回答、文章、想法的正文 HTML 换成 Markdown：标题、段落、列表、引用、链接、代码、表格，图片留在原处；
 //! 公式留 LaTeX 源码（`$…$`），链接卡片写成普通链接。
 //!
-//! 来源：由同一个组织里的公众号插件（`usuyo-fetch/wechat-mp`）的 `src/markdown.rs` 改来，转换的骨架一样；
+//! 来源：由同一个组织里的公众号插件（`usuyo-fetch/wechat`）的 `src/markdown.rs` 改来，转换的骨架一样；
 //! 知乎的元素对应（`ztext-math`、`LinkCard`、`video-box`、`data-original`、`link.zhihu.com` 的跳转链接）照知乎页面的写法，
 //! 没有对着真实页面量过（见 `src/page.rs` 顶部）。
 //!

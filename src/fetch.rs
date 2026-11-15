@@ -10,7 +10,7 @@
 //! - `meta.json`：问题、作者（名字、内部 id、主页路径名、主页链接）、创建和最后编辑的时间、各种计数、专栏、图片的地址与文件。
 //!
 //! 不下载页面里的视频：视频卡片只把地址写进正文的链接、记进 `meta.json`，并在 `missing` 里写 `media:video`，宿主据此找能补的方法
-//! （知乎视频页 `/zvideo/` 由 yt-dlp 插件取）。
+//! （知乎视频页 `/zvideo/`：视频文件未实现）。
 
 use std::collections::BTreeSet;
 use std::path::Path;
