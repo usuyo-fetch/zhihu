@@ -2,7 +2,7 @@
 //! （`x-zse-96` 一类的签名、`__zse_ck` 一类的挑战 cookie 由插件自己算）。
 //! 访客身份（`USUYO_VISITOR`，协议 §2.5.1：用户在应用里的窗口打开一次知乎、不登录，页面自己生成的 cookie）只发给页面的主机
 //! `www.zhihu.com`、`zhuanlan.zhihu.com`，只走 https；图片请求不带 cookie。没有访客身份时不发请求，回 `visitor-required`；
-//! 带着访客身份仍遇到挑战页或 403 时回 `visitor-required`（身份不再被收），保留 `detail`。
+//! 带着访客身份仍遇到挑战页、403，或被送去登录页（含 401）时回 `visitor-required`（身份不再被收），保留 `detail`。
 //! 请求都经 `usuyo_plugin_kit::http`：页面只连 `www.zhihu.com`、`zhuanlan.zhihu.com`，图片只连 `*.zhimg.com`，只连公网地址。
 //!
 //! 2026-11-12 实测（这台机器，不带 cookie，桌面浏览器 UA，curl 四次，之后没有再发请求）：
@@ -55,6 +55,9 @@ pub enum ApiError {
         /// 3xx 的 `Location`。
         location: Option<String>,
     },
+    /// 跟着跳转落到了登录页（只留路径，不留带着原链接的参数）。
+    #[error("the page redirected to the sign-in page {0}")]
+    SentToLogin(String),
     #[error("a response is larger than {limit} bytes")]
     TooLarge { limit: u64 },
     #[error("the host `{0}` is not one of the allowed image hosts")]
@@ -79,6 +82,7 @@ impl ApiError {
             ApiError::Http { status, .. } => *status == 429,
             ApiError::Answered { error, .. } => error.is_hard(),
             ApiError::Network(_)
+            | ApiError::SentToLogin(_)
             | ApiError::TooLarge { .. }
             | ApiError::ForbiddenHost(_)
             | ApiError::BadAddress(_)
@@ -149,6 +153,7 @@ fn failure(err: &ApiError) -> CallFailure {
             500..=599 => CallFailure::new(ErrorCode::Network, message),
             _ => CallFailure::new(ErrorCode::UpstreamChanged, message),
         },
+        ApiError::SentToLogin(_) => login_required(message),
         ApiError::TooLarge { .. }
         | ApiError::ForbiddenHost(_)
         | ApiError::BadAddress(_)
@@ -178,7 +183,7 @@ pub fn visitor_missing() -> CallFailure {
     }
 }
 
-/// 带着访客身份还遇到挑战页或 403：这份身份知乎不再收了。
+/// 带着访客身份还遇到挑战页、403，或被送去登录页（含 401）：这份身份知乎不再收了。
 pub fn visitor_rejected(blocked: CallFailure) -> CallFailure {
     CallFailure {
         code: ErrorCode::VisitorRequired,
@@ -368,6 +373,13 @@ impl Zhihu {
             let e = status_error(&response);
             let head = response.read_to_vec(ERROR_BODY_BYTES).unwrap_or_default();
             return Err(e.answered(&head));
+        }
+        // 同一个主机上的跳转已经跟了：落在登录页时回的是 200，照被送去登录页报
+        let landed = response.url().path().to_ascii_lowercase();
+        if landed != url.path().to_ascii_lowercase()
+            && (landed.starts_with("/signin") || landed.starts_with("/login"))
+        {
+            return Err(ApiError::SentToLogin(response.url().path().to_owned()));
         }
         let body = response.read_to_vec(PAGE_BYTES).map_err(transport)?;
         Ok(Fetched { status, body })

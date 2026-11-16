@@ -207,9 +207,9 @@ pub fn fetch(
     Ok(output)
 }
 
-/// 带着访客身份还遇到挑战页或 403：身份不再被收。
+/// 带着访客身份还遇到挑战页、403，或被送去登录页（含 401）：身份不再被收。
 fn rejected(failure: CallFailure) -> CallFailure {
-    if failure.code == ErrorCode::Blocked {
+    if matches!(failure.code, ErrorCode::Blocked | ErrorCode::LoginRequired) {
         visitor_rejected(failure)
     } else {
         failure

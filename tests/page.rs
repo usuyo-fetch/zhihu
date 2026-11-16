@@ -78,6 +78,13 @@ fn answer_page(id: &str, base: &str) -> Response {
         "2000000013" => Response::redirect("/account/unhuman?type=Q"),
         "2000000015" => Response::redirect("https://example.com/x"),
         "2000000016" => Response::status(401),
+        "2000000018" => Response::status(300).header(
+            "Location",
+            "https://www.zhihu.com/signin?next=%2Fquestion%2F1",
+        ),
+        "2000000019" => Response::status(300).header("Location", "/login"),
+        // 同主机的 302：插件会跟，落在登录页的 200
+        "2000000020" => Response::redirect("/signin?next=%2Fquestion%2F1"),
         // 图片没有的回答：把页面里一张图换成不存在的
         "2000000017" => Response {
             status: 200,
@@ -106,6 +113,7 @@ fn zhihu(req: &Request, base: &str) -> Response {
     }
     match path {
         "/account/unhuman" => html("challenge.html", base),
+        "/signin" => Response::status(200),
         "/p/19970400" => html("article.html", base),
         "/pin/1500000000000000001" => html("pin.html", base),
         "/pin/1500000000000000002" => html("pin_video.html", base),
@@ -557,7 +565,28 @@ fn http_statuses_and_redirects_map_to_the_error_codes() {
     assert_eq!((f.code, f.retry_after), (ErrorCode::RateLimited, Some(30)));
     assert_eq!(case("2000000012").code, ErrorCode::Network);
     assert_eq!(case("2000000015").code, ErrorCode::UpstreamChanged);
-    assert_eq!(case("2000000016").code, ErrorCode::LoginRequired);
+}
+
+#[test]
+fn being_sent_to_the_login_page_with_a_visitor_identity_means_it_is_no_longer_accepted() {
+    let server = Server::start(zhihu);
+    // 3xx 没被跟（300 不是插件会跟的跳转，原样交回）、`Location` 指向 `/signin`、`/login`，以及 401：都是 `visitor-required`，不是 `login-required`
+    for id in ["2000000018", "2000000019", "2000000016"] {
+        let f = failure(fetch_with(&server, &answer_url(id), None).1);
+        assert_eq!(f.code, ErrorCode::VisitorRequired, "{id}");
+        assert!(
+            f.hint.as_deref().is_some_and(|h| h.contains("重新取")),
+            "{id}"
+        );
+        assert_eq!(f.site.as_deref(), Some("www.zhihu.com"), "{id}");
+    }
+    // 跳转的目标留在 message 里
+    let f = failure(fetch_with(&server, &answer_url("2000000018"), None).1);
+    assert!(f.message.contains("/signin"), "{}", f.message);
+    // 同主机的 302 被跟到登录页的 200：一样
+    let f = failure(fetch_with(&server, &answer_url("2000000020"), None).1);
+    assert_eq!(f.code, ErrorCode::VisitorRequired);
+    assert!(f.message.ends_with("/signin"), "{}", f.message);
 }
 
 #[test]
