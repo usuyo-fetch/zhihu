@@ -27,12 +27,14 @@
 use std::time::Duration;
 
 use url::Url;
-use usuyo_plugin_kit::http::{self, Client, Cookie, Hosts, Policy};
+use usuyo_plugin_kit::http::{self, Client, Hosts, Policy, Visitor};
 use usuyo_plugin_kit::protocol::{CallFailure, ErrorCode, NotFoundReason, PluginEvent};
 
 use crate::link::{COLUMN_HOST, HOST};
 
 /// 普通桌面浏览器的 UA（2026-11-12 实测：这个 UA 不带 cookie 取回答、文章页，回挑战页）。
+/// 页面请求在访客身份带着取它时的 UA 时用那一个（2026-11-16 实测：访客窗口是 Safari 的 UA，
+/// 带它的 `__zse_ck` 配这个 UA 请求回答页，落到安全验证页）；图片请求和没有 UA 的访客身份用这个。
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
 /// 页面上限：收藏夹页实测 53 KB，长回答的页面更大。
 const PAGE_BYTES: u64 = 32 << 20;
@@ -58,6 +60,9 @@ pub enum ApiError {
     /// 跟着跳转落到了登录页（只留路径，不留带着原链接的参数）。
     #[error("the page redirected to the sign-in page {0}")]
     SentToLogin(String),
+    /// 跟着跳转落到了安全验证页（只留路径）。
+    #[error("the page redirected to the verification page {0}")]
+    SentToVerification(String),
     #[error("a response is larger than {limit} bytes")]
     TooLarge { limit: u64 },
     #[error("the host `{0}` is not one of the allowed image hosts")]
@@ -83,6 +88,7 @@ impl ApiError {
             ApiError::Answered { error, .. } => error.is_hard(),
             ApiError::Network(_)
             | ApiError::SentToLogin(_)
+            | ApiError::SentToVerification(_)
             | ApiError::TooLarge { .. }
             | ApiError::ForbiddenHost(_)
             | ApiError::BadAddress(_)
@@ -154,6 +160,7 @@ fn failure(err: &ApiError) -> CallFailure {
             _ => CallFailure::new(ErrorCode::UpstreamChanged, message),
         },
         ApiError::SentToLogin(_) => login_required(message),
+        ApiError::SentToVerification(_) => blocked(message),
         ApiError::TooLarge { .. }
         | ApiError::ForbiddenHost(_)
         | ApiError::BadAddress(_)
@@ -243,9 +250,9 @@ impl Endpoints {
         }
     }
 
-    /// 宿主交来的访客身份（`USUYO_VISITOR`），只发给页面的主机、只走 https。没交时是 `None`。
-    pub fn visitor_cookie(&self) -> Result<Option<Cookie>, http::VisitorError> {
-        Cookie::visitor(self.page_hosts())
+    /// 宿主交来的访客身份（`USUYO_VISITOR`）和取它时的 UA；cookie 只发给页面的主机、只走 https。没交时是 `None`。
+    pub fn visitor(&self) -> Result<Option<Visitor>, http::VisitorError> {
+        Visitor::from_env(self.page_hosts())
     }
 
     /// 页面请求的地址：正式运行就是链接本身；测试把主机换成本机的假服务器。
@@ -275,9 +282,9 @@ impl Endpoints {
             .is_some_and(|h| self.is_image_host(&h))
     }
 
-    fn client(&self, hosts: &[&str]) -> Client {
+    fn client(&self, user_agent: &str, hosts: &[&str]) -> Client {
         let local = self.local_host.as_deref();
-        Client::new(USER_AGENT, Hosts::only(hosts.iter().copied().chain(local)))
+        Client::new(user_agent, Hosts::only(hosts.iter().copied().chain(local)))
             .with_policy(self.policy)
     }
 
@@ -353,17 +360,19 @@ impl Zhihu {
         &self.endpoints
     }
 
-    /// 取页面。`request` 是要请求的链接。状态不是 2xx 就报错，带着回答的开头（读到 256 KB，`with_detail` 再截到 4 KB）。
-    pub fn page(&self, request: &str, cookie: &Cookie) -> Result<Fetched, ApiError> {
+    /// 取页面。`request` 是要请求的链接，带访客身份，UA 用取它时的那一个（宿主记下了才有）。
+    /// 状态不是 2xx 就报错，带着回答的开头（读到 256 KB，`with_detail` 再截到 4 KB）。
+    pub fn page(&self, request: &str, visitor: &Visitor) -> Result<Fetched, ApiError> {
         let url = self.endpoints.page_url(request)?;
         step("页面");
+        let user_agent = visitor.user_agent.as_deref().unwrap_or(USER_AGENT);
         let mut response = self
             .endpoints
-            .client(&[HOST, COLUMN_HOST])
+            .client(user_agent, &[HOST, COLUMN_HOST])
             .get(&url)
             .header("Accept", "text/html,application/xhtml+xml")
             .header("Accept-Language", "zh-CN,zh;q=0.9")
-            .cookie(cookie)
+            .cookie(&visitor.cookie)
             .follow_redirects(PAGE_REDIRECTS)
             .timeout(PAGE_TIMEOUT)
             .send()
@@ -374,12 +383,24 @@ impl Zhihu {
             let head = response.read_to_vec(ERROR_BODY_BYTES).unwrap_or_default();
             return Err(e.answered(&head));
         }
-        // 同一个主机上的跳转已经跟了：落在登录页时回的是 200，照被送去登录页报
-        let landed = response.url().path().to_ascii_lowercase();
-        if landed != url.path().to_ascii_lowercase()
-            && (landed.starts_with("/signin") || landed.starts_with("/login"))
-        {
-            return Err(ApiError::SentToLogin(response.url().path().to_owned()));
+        // 同一个主机上的跳转已经跟了：落在登录页、安全验证页时回的是 200，照被送去那里报，带着那一页的开头
+        let landed = response.url().path().to_owned();
+        let lower = landed.to_ascii_lowercase();
+        if lower != url.path().to_ascii_lowercase() {
+            let sent = if lower.starts_with("/signin") || lower.starts_with("/login") {
+                Some(ApiError::SentToLogin(landed))
+            } else if ["captcha", "verify", "unhuman"]
+                .iter()
+                .any(|word| lower.contains(word))
+            {
+                Some(ApiError::SentToVerification(landed))
+            } else {
+                None
+            };
+            if let Some(e) = sent {
+                let head = response.read_to_vec(ERROR_BODY_BYTES).unwrap_or_default();
+                return Err(e.answered(&head));
+            }
         }
         let body = response.read_to_vec(PAGE_BYTES).map_err(transport)?;
         Ok(Fetched { status, body })
@@ -389,7 +410,7 @@ impl Zhihu {
     pub fn image(&self, url: &Url, limit: u64) -> Result<(Vec<u8>, Option<String>), ApiError> {
         let mut response = self
             .endpoints
-            .client(&IMAGE_HOST_SUFFIXES)
+            .client(USER_AGENT, &IMAGE_HOST_SUFFIXES)
             .get(url)
             .header("Accept", "image/*")
             .follow_redirects(2)

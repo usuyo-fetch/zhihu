@@ -37,12 +37,12 @@ fn run(args: &[String]) -> anyhow::Result<u8> {
         ) => {
             let api = Zhihu::new(Endpoints::production());
             // 访客身份文件读不了、形状不对：宿主写的，不是用户填的，报 internal，不带值
-            let cookie = api
+            let visitor = api
                 .endpoints()
-                .visitor_cookie()
+                .visitor()
                 .map_err(|e| CallFailure::new(ErrorCode::Internal, e.to_string()));
-            emit(cookie.and_then(|cookie| {
-                fetch::fetch(&api, cookie.as_ref(), &input, &out, want.as_deref())
+            emit(visitor.and_then(|visitor| {
+                fetch::fetch(&api, visitor.as_ref(), &input, &out, want.as_deref())
             }))
         }
         // 没有要查的本机程序，也不向平台发请求

@@ -386,6 +386,12 @@ fn unavailable_or_missing(doc: &Html, html: &str) -> PageError {
 
 fn unavailable_or_missing_entity(doc: &Html, html: &str, target: &Target) -> PageError {
     let visible = visible_text(doc);
+    // 安全验证页带着内嵌数据、里面没有要的那一条，标题是「安全验证 - 知乎」（2026-11-16 量到的）
+    if visible.trim_start().starts_with("安全验证") {
+        return PageError::Verification {
+            detail: html.to_owned(),
+        };
+    }
     let mut err = unavailable(&visible, html, None);
     if cue(&visible).is_none()
         && let PageError::Unavailable { message, .. } = &mut err

@@ -24,6 +24,9 @@ visitors:
   - site: www.zhihu.com
     name: 知乎
     url: https://www.zhihu.com/
+    # 内容页放行靠页面脚本算出的 __zse_ck：有它才算取到。2026-11-16 实测首页和 /explore 不生成它，
+    # 打开一条回答的页面才生成；访客窗口现在只会开上面这个地址，所以这份身份自动取不到（usuyo 协议待定第 44 项）。
+    cookies: [__zse_ck]
     domains: [".zhihu.com"]
 sites:
   - site: www.zhihu.com
@@ -39,7 +42,7 @@ methods:
     account: visitor
     visitors: [www.zhihu.com]
     risk:
-      text: 2026-11-12 不带 cookie 的普通请求，回答页和文章页都回 403 的挑战页（要页面脚本算出验证 cookie 才放行）；所以要一份访客身份，没有就不发请求，带着仍遇到挑战页时回 visitor-required，不去算、不绕。没有用真实的访客身份请求过，也没有取到过一页真实的回答、文章或想法
+      text: 2026-11-12 不带 cookie 的普通请求，回答页和文章页都回 403 的挑战页（要页面脚本算出验证 cookie 才放行）；所以要一份访客身份，没有就不发请求，带着仍遇到挑战页时回 visitor-required，不去算、不绕。没有用真实的访客身份请求过，也没有取到过一页真实的回答、文章或想法。2026-11-16 对真平台试了三次：访客窗口开首页、/explore 取到的身份里没有 __zse_ck，回答页回挑战页；开一条回答的页面取到了 __zse_ck，用它配另一个浏览器的 UA 请求回答页，落到安全验证页，之后没有再试（现在页面请求改用取身份时的 UA，还没再跑）
       source: {label: "2026-11-12 实测，见 src/api.rs 顶部", url: "https://github.com/usuyo/usuyo/blob/main/docs/platforms/routes.md#10-知乎"}
     capabilities:
       fetch:

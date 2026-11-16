@@ -23,7 +23,7 @@ use usuyo_plugin_kit::protocol::{
     OutputKind, RelPath, Rfc3339, TextFormat,
 };
 
-use usuyo_plugin_kit::http::Cookie;
+use usuyo_plugin_kit::http::Visitor;
 
 use crate::api::{ApiError, Zhihu, progress, visitor_missing, visitor_rejected};
 use crate::link::{self, Kind, Target};
@@ -48,7 +48,7 @@ const TITLE_CHARS: usize = 100;
 
 pub fn fetch(
     api: &Zhihu,
-    cookie: Option<&Cookie>,
+    visitor: Option<&Visitor>,
     input: &str,
     out: &Path,
     want: Option<&[OutputKind]>,
@@ -71,9 +71,9 @@ pub fn fetch(
 
     let fetched_at = Rfc3339::from_timestamp(jiff::Timestamp::now());
     // 没有访客身份：不发请求
-    let cookie = cookie.ok_or_else(visitor_missing)?;
+    let visitor = visitor.ok_or_else(visitor_missing)?;
     let fetched = api
-        .page(&target.request_url(), cookie)
+        .page(&target.request_url(), visitor)
         .map_err(|e| rejected(page::from_request_error(e)))?;
     let html = String::from_utf8_lossy(&fetched.body);
     let post = page::parse(&html, &target).map_err(|e| rejected(CallFailure::from(e)))?;

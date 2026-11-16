@@ -17,7 +17,7 @@ use usuyo_plugin::protocol::{
     Access, CallFailure, Completeness, ErrorCode, FetchOutput, Identity, ItemKind, NotFoundReason,
     OutputKind, TextFormat,
 };
-use usuyo_plugin_kit::http::{Cookie, Policy};
+use usuyo_plugin_kit::http::{Cookie, Policy, Visitor};
 
 const VISITOR: &str = "KLC_VER=1; d_c0=sample-visitor-cookie";
 
@@ -69,6 +69,7 @@ fn answer_page(id: &str, base: &str) -> Response {
         "2000000004" => html("review.html", base),
         "2000000005" => html("hidden.html", base),
         "2000000006" => html("unknown.html", base),
+        "2000000021" => html("security_check.html", base),
         "2000000007" => html("no_data.html", base),
         "2000000008" => html("broken_data.html", base),
         "2000000009" => page(404, "gone.html", base),
@@ -138,8 +139,14 @@ fn answer_url(id: &str) -> String {
     format!("https://www.zhihu.com/answer/{id}")
 }
 
-fn visitor() -> Cookie {
-    Cookie::new(VISITOR, ["127.0.0.1"])
+/// 访客窗口的 UA：和插件自己的那个不一样，看得出页面请求用的是哪一个。
+const VISITOR_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Safari/605.1.15";
+
+fn visitor() -> Visitor {
+    Visitor {
+        cookie: Cookie::new(VISITOR, ["127.0.0.1"]),
+        user_agent: Some(VISITOR_AGENT.into()),
+    }
 }
 
 fn fetch_with(
@@ -319,7 +326,14 @@ fn an_answer_gives_the_question_markdown_original_images_the_page_and_meta() {
     // 访客身份只跟着页面请求；图片请求不带 cookie
     assert_eq!(reqs[0].cookie(), Some(VISITOR));
     assert!(reqs[1..].iter().all(|r| r.cookie().is_none()), "{reqs:?}");
-    assert!(reqs[0].headers["user-agent"].contains("Mozilla/5.0"));
+    // 页面请求用取访客身份时的 UA，图片请求用插件自己的
+    assert_eq!(reqs[0].headers["user-agent"], VISITOR_AGENT);
+    assert!(
+        reqs[1..]
+            .iter()
+            .all(|r| r.headers["user-agent"].contains("Chrome/")),
+        "{reqs:?}"
+    );
 }
 
 #[test]
@@ -497,6 +511,10 @@ fn a_challenge_page_with_a_visitor_identity_means_it_is_no_longer_accepted() {
             "{id} {f:?}"
         );
     }
+    // 带着内嵌数据的安全验证页（量到的）：不当成「没有这条回答」
+    let f = failure(fetch_with(&server, &answer_url("2000000021"), None).1);
+    assert_eq!(f.code, ErrorCode::VisitorRequired);
+    assert!(f.detail.as_deref().is_some_and(|d| d.contains("安全验证")));
     // 没有去请求挑战页里的脚本
     assert!(server.requests().iter().all(|r| !r.path.contains("zse")));
 }
