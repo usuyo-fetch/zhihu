@@ -496,8 +496,8 @@ fn without_a_visitor_identity_nothing_is_requested() {
 #[test]
 fn a_challenge_page_with_a_visitor_identity_means_it_is_no_longer_accepted() {
     let server = Server::start(zhihu);
-    // 403 加挑战页（量到的）；200 加挑战页；跳去验证页
-    for id in ["2000000001", "2000000002", "2000000013"] {
+    // 403 加挑战页（量到的）；200 加挑战页
+    for id in ["2000000001", "2000000002"] {
         let (_tmp, result) = fetch_with(&server, &answer_url(id), None);
         let f = failure(result);
         assert_eq!(f.code, ErrorCode::VisitorRequired, "{id}");
@@ -511,10 +511,14 @@ fn a_challenge_page_with_a_visitor_identity_means_it_is_no_longer_accepted() {
             "{id} {f:?}"
         );
     }
-    // 带着内嵌数据的安全验证页（量到的）：不当成「没有这条回答」
-    let f = failure(fetch_with(&server, &answer_url("2000000021"), None).1);
-    assert_eq!(f.code, ErrorCode::VisitorRequired);
-    assert!(f.detail.as_deref().is_some_and(|d| d.contains("安全验证")));
+    // 安全验证页不是这一种：跟着跳转落到 `/account/unhuman`、带着内嵌数据的「安全验证」页（量到的）都回 `blocked`，
+    // 不当成「没有这条回答」，也不叫宿主换一份访客身份再试
+    for id in ["2000000013", "2000000021"] {
+        let f = failure(fetch_with(&server, &answer_url(id), None).1);
+        assert_eq!(f.code, ErrorCode::Blocked, "{id} {f:?}");
+        assert!(f.detail.is_some(), "{id}");
+        assert!(f.hint.as_deref().is_some_and(|h| h.contains("安全验证")));
+    }
     // 没有去请求挑战页里的脚本
     assert!(server.requests().iter().all(|r| !r.path.contains("zse")));
 }

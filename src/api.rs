@@ -2,7 +2,8 @@
 //! （`x-zse-96` 一类的签名、`__zse_ck` 一类的挑战 cookie 由插件自己算）。
 //! 访客身份（`USUYO_VISITOR`，协议 §2.5.1：用户在应用里的窗口打开一次知乎、不登录，页面自己生成的 cookie）只发给页面的主机
 //! `www.zhihu.com`、`zhuanlan.zhihu.com`，只走 https；图片请求不带 cookie。没有访客身份时不发请求，回 `visitor-required`；
-//! 带着访客身份仍遇到挑战页、403，或被送去登录页（含 401）时回 `visitor-required`（身份不再被收），保留 `detail`。
+//! 带着访客身份仍遇到挑战页、403，或被送去登录页（含 401）时回 `visitor-required`（身份不再被收），保留 `detail`；
+//! 碰到安全验证页（`/account/unhuman`、标题「安全验证」的页面）回 `blocked`，不换访客身份再试。
 //! 请求都经 `usuyo_plugin_kit::http`：页面只连 `www.zhihu.com`、`zhuanlan.zhihu.com`，图片只连 `*.zhimg.com`，只连公网地址。
 //!
 //! 2026-11-12 实测（这台机器，不带 cookie，桌面浏览器 UA，curl 四次，之后没有再发请求）：
@@ -96,6 +97,20 @@ impl ApiError {
         }
     }
 
+    /// 被送去安全验证页（跟了的和没跟的跳转）：要人来过的验证，换一份访客身份没有用。
+    pub fn is_security_check(&self) -> bool {
+        match self {
+            ApiError::SentToVerification(_) => true,
+            ApiError::Http {
+                status: 300..=399,
+                location: Some(l),
+                ..
+            } => verification_path(l),
+            ApiError::Answered { error, .. } => error.is_security_check(),
+            _ => false,
+        }
+    }
+
     fn answered(self, raw: &[u8]) -> ApiError {
         ApiError::Answered {
             error: Box::new(self),
@@ -138,13 +153,8 @@ fn failure(err: &ApiError) -> CallFailure {
                 login_required(message)
             }
             // 跳去验证页的算被拦；别的跳转是页面改了
-            300..=399
-                if location.as_deref().is_some_and(|l| {
-                    let l = l.to_ascii_lowercase();
-                    l.contains("captcha") || l.contains("verify") || l.contains("unhuman")
-                }) =>
-            {
-                blocked(message)
+            300..=399 if location.as_deref().is_some_and(verification_path) => {
+                security_check(message)
             }
             404 => CallFailure::new(ErrorCode::NotFound, message),
             410 => CallFailure {
@@ -160,7 +170,7 @@ fn failure(err: &ApiError) -> CallFailure {
             _ => CallFailure::new(ErrorCode::UpstreamChanged, message),
         },
         ApiError::SentToLogin(_) => login_required(message),
-        ApiError::SentToVerification(_) => blocked(message),
+        ApiError::SentToVerification(_) => security_check(message),
         ApiError::TooLarge { .. }
         | ApiError::ForbiddenHost(_)
         | ApiError::BadAddress(_)
@@ -200,6 +210,22 @@ pub fn visitor_rejected(blocked: CallFailure) -> CallFailure {
         site: Some(HOST.into()),
         ..blocked
     }
+}
+
+/// 安全验证页（验证码一类，要人来过）：照 `blocked` 报，不当成访客身份不被收。
+pub fn security_check(message: String) -> CallFailure {
+    CallFailure {
+        hint: Some("知乎要求做安全验证；先停下，隔一阵再试，换一份访客身份没有用".into()),
+        ..CallFailure::new(ErrorCode::Blocked, message)
+    }
+}
+
+/// 地址像不像验证页（`/account/unhuman` 一类）。
+fn verification_path(location: &str) -> bool {
+    let l = location.to_ascii_lowercase();
+    ["captcha", "verify", "unhuman"]
+        .iter()
+        .any(|word| l.contains(word))
 }
 
 pub fn blocked(message: String) -> CallFailure {
@@ -389,10 +415,7 @@ impl Zhihu {
         if lower != url.path().to_ascii_lowercase() {
             let sent = if lower.starts_with("/signin") || lower.starts_with("/login") {
                 Some(ApiError::SentToLogin(landed))
-            } else if ["captcha", "verify", "unhuman"]
-                .iter()
-                .any(|word| lower.contains(word))
-            {
+            } else if verification_path(&lower) {
                 Some(ApiError::SentToVerification(landed))
             } else {
                 None

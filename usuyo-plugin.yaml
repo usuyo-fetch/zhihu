@@ -77,7 +77,7 @@ methods:
         order: unordered
 # 页面会出挑战页，宿主按最严的取：间隔长、每天少
 pacing:
-  zhihu: {batch: true, interval: 30s, daily: 100}
+  zhihu: {batch: true, interval: 30s, daily: 100, blocked: stop}
 permissions:
   fs:
     read: ["${INPUT}"]

@@ -25,7 +25,7 @@ use usuyo_plugin_kit::protocol::{
 
 use usuyo_plugin_kit::http::Visitor;
 
-use crate::api::{ApiError, Zhihu, progress, visitor_missing, visitor_rejected};
+use crate::api::{ApiError, Zhihu, progress, visitor_missing};
 use crate::link::{self, Kind, Target};
 use crate::markdown::{self, Converted};
 use crate::page::{self, Post};
@@ -74,9 +74,9 @@ pub fn fetch(
     let visitor = visitor.ok_or_else(visitor_missing)?;
     let fetched = api
         .page(&target.request_url(), visitor)
-        .map_err(|e| rejected(page::from_request_error(e)))?;
+        .map_err(page::from_request_error)?;
     let html = String::from_utf8_lossy(&fetched.body);
-    let post = page::parse(&html, &target).map_err(|e| rejected(CallFailure::from(e)))?;
+    let post = page::parse(&html, &target)?;
 
     let mut output = FetchOutput {
         identity: Some(identity),
@@ -205,15 +205,6 @@ pub fn fetch(
         output.missing_reason = Some(reasons.join("；"));
     }
     Ok(output)
-}
-
-/// 带着访客身份还遇到挑战页、403，或被送去登录页（含 401）：身份不再被收。
-fn rejected(failure: CallFailure) -> CallFailure {
-    if matches!(failure.code, ErrorCode::Blocked | ErrorCode::LoginRequired) {
-        visitor_rejected(failure)
-    } else {
-        failure
-    }
 }
 
 fn convert(api: &Zhihu, post: &Post) -> Converted {

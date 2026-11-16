@@ -18,7 +18,7 @@ use scraper::{Html, Selector};
 use serde_json::{Map, Value};
 use usuyo_plugin_kit::protocol::{CallFailure, ErrorCode, NotFoundReason};
 
-use crate::api::{ApiError, blocked};
+use crate::api::{ApiError, blocked, security_check, visitor_rejected};
 use crate::link::{Kind, Target};
 
 /// 这一页的作者。
@@ -88,8 +88,10 @@ pub enum PageError {
         hint: Option<String>,
         detail: String,
     },
-    /// 挑战页或验证页。
+    /// 挑战页（`zh-zse-ck`）：带着的访客身份不被收。
     Verification { detail: String },
+    /// 安全验证页（验证码一类，要人来过）。
+    SecurityCheck { detail: String },
     /// 既没有要的数据，也不是认得的提示页。
     Missing { what: String, detail: String },
 }
@@ -108,8 +110,12 @@ impl From<PageError> for CallFailure {
                 ..CallFailure::new(ErrorCode::NotFound, message)
             }
             .with_detail(&detail),
-            PageError::Verification { detail } => {
-                blocked("the page is a verification or challenge page".into()).with_detail(&detail)
+            PageError::Verification { detail } => visitor_rejected(
+                blocked("the page is a verification or challenge page".into()).with_detail(&detail),
+            ),
+            PageError::SecurityCheck { detail } => {
+                security_check("the page is a security verification page".into())
+                    .with_detail(&detail)
             }
             PageError::Missing { what, detail } => CallFailure {
                 hint: Some("知乎页面的结构变了，这个插件需要更新".into()),
@@ -136,26 +142,27 @@ pub fn from_request_error(err: ApiError) -> CallFailure {
                 },
             ));
         }
-        if matches!(status, 403 | 401) && is_challenge(answer) {
-            return CallFailure::from(PageError::Verification {
-                detail: answer.clone(),
-            });
+        if matches!(status, 403 | 401)
+            && let Some(page) = challenge(answer)
+        {
+            return CallFailure::from(page);
         }
     }
-    err.into()
+    // 带着访客身份还被拦（403、412）或被送去登录页（含 401）：这份身份不再被收。安全验证页不算这一种
+    let security_check = err.is_security_check();
+    let failure = CallFailure::from(err);
+    if !security_check && matches!(failure.code, ErrorCode::Blocked | ErrorCode::LoginRequired) {
+        visitor_rejected(failure)
+    } else {
+        failure
+    }
 }
 
 pub fn parse(html: &str, target: &Target) -> Result<Post, PageError> {
     let doc = Html::parse_document(html);
     let selector = Selector::parse("script#js-initialData").expect("constant selector");
     let Some(script) = doc.select(&selector).next() else {
-        return Err(if is_challenge(html) {
-            PageError::Verification {
-                detail: html.to_owned(),
-            }
-        } else {
-            unavailable_or_missing(&doc, html)
-        });
+        return Err(challenge(html).unwrap_or_else(|| unavailable_or_missing(&doc, html)));
     };
     let raw: String = script.text().collect();
     let state: Value = serde_json::from_str(&raw).map_err(|e| PageError::Missing {
@@ -349,12 +356,16 @@ fn int(map: &Map<String, Value>, keys: &[&str]) -> Option<i64> {
         .filter(|t| *t > 0)
 }
 
-/// 挑战页：`<meta id="zh-zse-ck">`（量到的），或接口回的 40362 一类验证提示、`unhuman` 页。
-fn is_challenge(body: &str) -> bool {
-    body.contains("zh-zse-ck")
-        || body.contains("/zse-ck/")
-        || body.contains("account/unhuman")
-        || body.contains("\"code\":40362")
+/// 挑战页：`<meta id="zh-zse-ck">`（量到的）；安全验证：接口回的 40362 一类验证提示、`unhuman` 页。都不是时 `None`。
+fn challenge(body: &str) -> Option<PageError> {
+    let detail = body.to_owned();
+    if body.contains("zh-zse-ck") || body.contains("/zse-ck/") {
+        Some(PageError::Verification { detail })
+    } else if body.contains("account/unhuman") || body.contains("\"code\":40362") {
+        Some(PageError::SecurityCheck { detail })
+    } else {
+        None
+    }
 }
 
 fn visible_text(doc: &Html) -> String {
@@ -388,7 +399,7 @@ fn unavailable_or_missing_entity(doc: &Html, html: &str, target: &Target) -> Pag
     let visible = visible_text(doc);
     // 安全验证页带着内嵌数据、里面没有要的那一条，标题是「安全验证 - 知乎」（2026-11-16 量到的）
     if visible.trim_start().starts_with("安全验证") {
-        return PageError::Verification {
+        return PageError::SecurityCheck {
             detail: html.to_owned(),
         };
     }
